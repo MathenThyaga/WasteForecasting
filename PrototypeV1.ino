@@ -2,8 +2,8 @@
 #include <PubSubClient.h>
 
 //***********Connectivity***************************
-#define ssid "Raja Zareef"
-#define pass "matstopa"
+#define ssid "Mathen's Iphone"
+#define pass "mathen24"
 
 const char* mqttServer = "mqtt.thingsboard.cloud"; // ThingsBoard MQTT broker URL
 const char* deviceId = "level13"; // mqtt client ID
