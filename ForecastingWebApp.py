@@ -38,8 +38,8 @@ def get_endTs():
 def predict(data):
 
     # Predict forecast with Prophet
-    df_train = data[['Timestamp', 'Level']]
-    df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
+    df_train = data[['Timestamp', 'Level']]		
+    df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})	#rename Timestamp to 'ds' and Level to 'y'
 
     m = Prophet()
     m.fit(df_train)
@@ -59,21 +59,23 @@ def predict(data):
     st.dataframe(prediction_table)
     
     #show prediction graph
-    fig1 = plot_plotly(m, forecast)
-    st.plotly_chart(fig1)
+    fig1 = plot_plotly(m, forecast)	# Use Prophet's plot_plotly function to create an interactive plot of the forecast. 
+    st.plotly_chart(fig1)		# Display the plot using Streamlit's plotly_chart method.
 
     #forecast components
     st.subheader(f'Forecast Components for {selected_device_name}')
     with st.expander("Click to read more on the components"):
         st.write("The forecast components represent the individual factors contributing to the overall forecast.These components include trend, weekly seasonality, and any other patterns identified by the model.")
     
-    fig2 = m.plot_components(forecast)
-    st.write(fig2)
+    fig2 = m.plot_components(forecast)	# Use Prophet's plot_components method to create plots showing the individual components
+    st.write(fig2)			# of the forecast (trend, seasonality, etc.). Display the plots using Streamlit's write method.
 
-    # Calculate performance metrics
+    # Calculate performance metrics.
+    # Calculate the average absolute difference between the actual and predicted values 
     MAE = mean_absolute_error(data['Level'], forecast['yhat'][:-7]) #exclude the last 7 values in yhat, these are the prediction values
-    RMSE = math.sqrt(mean_squared_error(data['Level'], forecast['yhat'][:-7]))
-
+    # Calculate the square root of the average squared differences between the actual and predicted values
+    RMSE = math.sqrt(mean_squared_error(data['Level'], forecast['yhat'][:-7]))	
+	
     # Display performance metrics
     st.subheader('Performance Metrics of the Forecast')
     with st.expander("Click to read more on the metrics"):
