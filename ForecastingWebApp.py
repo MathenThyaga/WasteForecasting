@@ -90,10 +90,10 @@ def get_timeseries(deviceID):
     # ThingsBoard API endpoint
     url = "https://thingsboard.cloud:443/api/plugins/telemetry/DEVICE/"+deviceID+"/values/timeseries"
     params = {
-        "keys": "Level",
+        "keys": "Level",	#specify we want to fetch the 'Level' data
         "startTs": 1697285822857, #the start_ts is set to 2023-10-14 20:14:58.294887
         "endTs":   get_endTs(), #converts current time to UNIX timestamp in milliseconds
-        "limit":10000,
+        "limit":10000,		#specify max number of data points to retrieve
     }
 
     # Headers with authorization token
@@ -103,7 +103,8 @@ def get_timeseries(deviceID):
     }
 
     # Make the API request
-    response = requests.get(url, params=params, headers=headers)
+    # #Uses the requests library to make a GET request to the ThingsBoard API with the specified URL, parameters, and headers
+    response = requests.get(url, params=params, headers=headers) 
 
     # Check if the request was successful (status code 200)
     if response.status_code == 200:
@@ -123,10 +124,10 @@ def get_timeseries(deviceID):
 def modify_json(json_data):
     try:
             # Extract 'Level' data from JSON
-            level_data = json_data.get("Level", [])
+            level_data = json_data.get("Level", []) 
 
             # Create DataFrame
-            data = pd.DataFrame(level_data)
+            data = pd.DataFrame(level_data)	# converts the list of dictionaries (level_data) into a Pandas DataFrame
 
             # Convert timestamps to datetime format
             data['Timestamp'] = pd.to_datetime(data['ts'], unit='ms')
@@ -145,7 +146,7 @@ def modify_json(json_data):
             predict(data)
         
     except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error: {e}")	# If any error occurs during the data processing, it is caught and displayed as an error message in the Streamlit app.
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')  # Adjust page config
