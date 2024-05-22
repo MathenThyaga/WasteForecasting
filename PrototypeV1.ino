@@ -1,5 +1,5 @@
 #include <WiFiNINA.h>
-#include <PubSubClient.h>
+#include <PubSubClient.h>  # used to communicate with MQTT broker
 
 //***********Connectivity***************************
 #define ssid "Mathen's Iphone"
@@ -18,8 +18,8 @@ const int sensor1EchoPin = 3;    // Ultrasonic sensor 1 echo pin
 //sensor 2 to check whether bin is opened or closed
 const int sensor2TrigPin = 4;    // Ultrasonic sensor 2 trigger pin
 const int sensor2EchoPin = 5;    // Ultrasonic sensor 2 echo pin
-const int thresholdDistance = 5; // Threshold distance for sensor 2 in centimeters
-float duration, distance, level;
+const int thresholdDistance = 5; // Threshold distance for sensor 2 in centimeters (5cm)
+float duration, distance, level;  // variables for sensor measurements
 
 void setup() {
   Serial.begin(9600);
@@ -33,7 +33,7 @@ void setup() {
 
 void loop() {
   //connect to server first
-  if (!client.connected()) {
+  if (!client.connected()) {    // check if MQTT client is connected; if not, calls 'reconnect()'
     reconnect();
   }
   getAndSendLevel();
@@ -67,7 +67,7 @@ void reconnect() {
 }
 
 void getAndSendLevel() {
-  if (IsBinClosed()) {
+  if (IsBinClosed()) {    //check if bin is closed
     // Sensor 2 detected a distance less than the threshold, indicating the bin is closed
     Serial.println("Bin is closed.");
 
@@ -75,6 +75,7 @@ void getAndSendLevel() {
     delay(1000);
 
     // Proceed to measure distance from sensor 1 for waste level
+    //if bin is closed, measure waste level using sensor 1
     digitalWrite(sensor1TrigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(sensor1TrigPin, HIGH);
@@ -106,7 +107,7 @@ void getAndSendLevel() {
     client.publish("v1/devices/me/telemetry", buffer); // Publish the C-style string payload
     Serial.println(buffer);
 
-  } else {
+  } else {   //if bin is open
     Serial.println("Bin is open. Please wait for it to close");
   }
     
