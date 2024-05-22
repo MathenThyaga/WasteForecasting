@@ -117,7 +117,9 @@ def get_timeseries(deviceID):
         return None
 
 # Function to modify the json format to panda data frames
-@st.cache_data
+# @st.cache_data is a decorator provided by Streamlit to cache the results of the function. This means that if the function is called again with  
+# the same parameters, it will return the cached result instead of fetching the data again. This helps improve performance and reduce redundant API calls.
+@st.cache_data	
 def modify_json(json_data):
     try:
             # Extract 'Level' data from JSON
