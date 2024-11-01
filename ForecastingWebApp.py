@@ -11,11 +11,10 @@ import math
 
 # Initialize Firebase using Streamlit secrets
 if not firebase_admin._apps:
-    # Load credentials directly from Streamlit secrets
-    firebase_creds = st.secrets["firebase"]  # No need for json.loads
-    cred = credentials.Certificate(firebase_creds)
+    # Use Streamlit secrets directly
+    cred = credentials.Certificate(st.secrets["firebase"])
     firebase_admin.initialize_app(cred, {
-        'databaseURL': firebase_creds['databaseURL']
+        'databaseURL': st.secrets["firebase"]["databaseURL"]
     })
 
 # Device ID mapping (customize with your Firebase device names and IDs)
