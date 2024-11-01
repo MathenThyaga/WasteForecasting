@@ -71,11 +71,11 @@ def predict(data, device_name):
 # Function to fetch timeseries data from Firebase Realtime Database
 @st.cache_data
 def fetch_timeseries(device_id):
-    ref = db.reference(f'Devices/Level Sensor {device_id}/Level')  # Assuming levels are stored here
+    ref = db.reference(f'Devices/Level Sensor {device_id}/Level')
     data = ref.get()
 
-    # Check if data is structured with timestamps
-    if data:
+    # Handle cases where data is a single integer or float instead of a dictionary
+    if isinstance(data, dict):
         try:
             data_df = pd.DataFrame([
                 {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level)}
@@ -85,8 +85,11 @@ def fetch_timeseries(device_id):
         except Exception as e:
             st.error(f"Data format error: {e}")
             return None
+    elif isinstance(data, (int, float)):
+        st.error("Expected timeseries data, but received a single value. Ensure your Firebase structure includes timestamps.")
+        return None
     else:
-        st.error("No data found for the selected device.")
+        st.error("No data found or data format is unsupported.")
         return None
 
 ########### Streamlit app setup ################
