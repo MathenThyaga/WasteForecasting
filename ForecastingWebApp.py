@@ -11,8 +11,8 @@ import math
 
 # Initialize Firebase using Streamlit secrets
 if not firebase_admin._apps:
-    # Load credentials from Streamlit secrets
-    firebase_creds = json.loads(json.dumps(st.secrets["firebase"]))
+    # Load credentials directly from Streamlit secrets
+    firebase_creds = st.secrets["firebase"]  # No need for json.loads
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred, {
         'databaseURL': firebase_creds['databaseURL']
