@@ -11,12 +11,11 @@ import math
 
 # Initialize Firebase using Streamlit secrets
 if not firebase_admin._apps:
-    firebase_creds = st.secrets["firebase"]
+    firebase_creds = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred, {
-        'databaseURL': st.secrets["firebase"]["databaseURL"]
+        'databaseURL': firebase_creds["databaseURL"]
     })
-
 # Device ID mapping (customize with your Firebase device names and IDs)
 device_id_mapping = {
     "Level Sensor 1": "1",
