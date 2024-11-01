@@ -74,13 +74,17 @@ def fetch_timeseries(device_id):
     ref = db.reference(f'Devices/Level Sensor {device_id}/Level')
     data = ref.get()
 
-    # Handle cases where data is a single integer or float instead of a dictionary
+    # Check if data is a dictionary with timestamps
     if isinstance(data, dict):
         try:
             data_df = pd.DataFrame([
-                {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level)}
-                for ts, level in data.items()
+                {
+                    "Timestamp": pd.to_datetime(int(ts), unit='ms'), 
+                    "Level": float(level_data['value']) if 'value' in level_data else None
+                }
+                for ts, level_data in data.items()
             ])
+            data_df.dropna(subset=['Level'], inplace=True)  # Drop rows where Level is None
             return data_df
         except Exception as e:
             st.error(f"Data format error: {e}")
