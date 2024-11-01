@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from prophet import Prophet
 from prophet.plot import plot_plotly
-import datetime
 import json
 import firebase_admin
 from firebase_admin import credentials, db
@@ -16,7 +15,8 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {
         'databaseURL': firebase_creds["databaseURL"]
     })
-# Device ID mapping (customize with your Firebase device names and IDs)
+
+# Device ID mapping (Firebase device names and IDs)
 device_id_mapping = {
     "Level Sensor 1": "1",
     "Level Sensor 2": "2",
@@ -71,15 +71,20 @@ def predict(data, device_name):
 # Function to fetch timeseries data from Firebase Realtime Database
 @st.cache_data
 def fetch_timeseries(device_id):
-    ref = db.reference(f'Devices/{device_id}/Level')  # Assuming levels are stored in this path
-    data = ref.order_by_key().get()
+    ref = db.reference(f'Devices/Level Sensor {device_id}/Level')  # Assuming levels are stored here
+    data = ref.get()
 
+    # Check if data is structured with timestamps
     if data:
-        data_df = pd.DataFrame([
-            {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level['value'])}
-            for ts, level in data.items()
-        ])
-        return data_df
+        try:
+            data_df = pd.DataFrame([
+                {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level)}
+                for ts, level in data.items()
+            ])
+            return data_df
+        except Exception as e:
+            st.error(f"Data format error: {e}")
+            return None
     else:
         st.error("No data found for the selected device.")
         return None
