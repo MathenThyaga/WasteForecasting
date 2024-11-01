@@ -3,36 +3,41 @@ import pandas as pd
 from prophet import Prophet
 from prophet.plot import plot_plotly
 import datetime
-import requests
+import json
+import firebase_admin
+from firebase_admin import credentials, db
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import math
 
-# Define a dictionary to map device names to their device IDs
+# Initialize Firebase using Streamlit secrets
+if not firebase_admin._apps:
+    # Load credentials from Streamlit secrets
+    firebase_creds = json.loads(json.dumps(st.secrets["firebase"]))
+    cred = credentials.Certificate(firebase_creds)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': firebase_creds['databaseURL']
+    })
+
+# Device ID mapping (customize with your Firebase device names and IDs)
 device_id_mapping = {
-    "Level Sensor 1": "ee5ed210-7174-11ed-a3e8-cd953d903e76",
-    "Level Sensor 2": "7484aaf0-7174-11ed-a3e8-cd953d903e76",
-    "Level Sensor 3": "89854130-7174-11ed-861d-25ac767dd88b",
-    "Level Sensor 4": "a3676240-7174-11ed-a3e8-cd953d903e76",
-    "Level Sensor 5": "b8206830-7174-11ed-8b62-e9eba22b9df6",
-    "Level Sensor 6": "bf2fa870-7174-11ed-8b62-e9eba22b9df6",
-    "Level Sensor 7": "cbe57130-7174-11ed-861d-25ac767dd88b",
-    "Level Sensor 8": "d455a100-7174-11ed-861d-25ac767dd88b",
-    "Level Sensor 9": "dbecfd00-7174-11ed-a3e8-cd953d903e76",
-    "Level Sensor 10": "e3806160-7174-11ed-8b62-e9eba22b9df6",
-    "Level Sensor 11": "cb254a10-578c-11ed-b28a-eb999599ab40",
-    "Level Sensor 13": "d226fe80-7514-11ed-b24c-ab40826c689b"
-    # Add more mappings as needed
+    "Level Sensor 1": "1",
+    "Level Sensor 2": "2",
+    "Level Sensor 3": "3",
+    "Level Sensor 4": "4",
+    "Level Sensor 5": "5",
+    "Level Sensor 6": "6",
+    "Level Sensor 7": "7",
+    "Level Sensor 8": "8",
+    "Level Sensor 9": "9",
+    "Level Sensor 10": "10",
+    "Level Sensor 11": "11",
+    "Level Sensor 12": "12",
+    "Level Sensor 13": "13"
 }
 
-# Function to convert the current time to UNIX timestamp in ms
-def get_endTs(): 
-    end_ts = datetime.datetime.now()
-    end_ts_unix_ms = int(end_ts.timestamp() * 1000)
-    return end_ts_unix_ms
-
 # Function to run the forecast and plot graph
-def predict(data):
-    # Prepare the data for Prophet
+def predict(data, device_name):
+    # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']]
     df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
 
@@ -48,107 +53,51 @@ def predict(data):
     st.success("Forecasting done! Hooray!")
 
     # Display forecast results
-    st.subheader(f'Waste Forecast for {selected_device_name}')
-
-    # Show prediction table for the next 7 days
-    prediction_table = forecast[['ds', 'yhat']].tail(7)
-    prediction_table = prediction_table.rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"})
-    st.dataframe(prediction_table)
+    st.subheader(f'Waste Forecast for {device_name}')
+    st.write(forecast[['ds', 'yhat']].tail(7).rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
     
     # Show prediction graph
     fig1 = plot_plotly(m, forecast)
     st.plotly_chart(fig1)
 
-    # Show forecast components
-    st.subheader(f'Forecast Components for {selected_device_name}')
-    with st.expander("Click to read more on the components"):
-        st.write("The forecast components represent the individual factors contributing to the overall forecast. These components include trend, weekly seasonality, and any other patterns identified by the model.")
-    
-    fig2 = m.plot_components(forecast)
-    st.write(fig2)
-
     # Calculate performance metrics
     y_true = data['Level']
-    y_pred = forecast['yhat'][:len(y_true)]  # align the lengths of true and predicted values
+    y_pred = forecast['yhat'][:len(y_true)]
     MAE = mean_absolute_error(y_true, y_pred)
     RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
 
-    # Display performance metrics
     st.subheader('Performance Metrics of the Forecast')
-    with st.expander("Click to read more on the metrics"):
-        st.write("The lower the value of the metrics, the better the performance of the prediction model. Mean Absolute Error (MAE): Measures the average absolute difference between the predicted values and the actual values. Mean Squared Error (MSE): Measures the squared average difference between the predicted values and the actual values.")
     st.write(f'Mean Absolute Error: {MAE}')
     st.write(f'Root Mean Squared Error: {RMSE}')
 
-# Function to get the time series data from ThingsBoard via GET request
+# Function to fetch timeseries data from Firebase Realtime Database
 @st.cache_data
-def get_timeseries(deviceID):
-    url = f"https://thingsboard.cloud:443/api/plugins/telemetry/DEVICE/{deviceID}/values/timeseries"
-    params = {
-        "keys": "Level",
-        "startTs": 1697285822857,  # the start_ts is set to 2023-10-14 20:14:58.294887
-        "endTs": get_endTs(),  # convert current time to UNIX timestamp in milliseconds
-        "limit": 10000,
-    }
-    headers = {
-        "Authorization": st.secrets['access_token']
-    }
+def fetch_timeseries(device_id):
+    ref = db.reference(f'Devices/{device_id}/Level')  # Assuming levels are stored in this path
+    data = ref.order_by_key().get()
 
-    response = requests.get(url, params=params, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 401:
-        st.error("Unauthorized Access! Please check your access token.")
+    if data:
+        data_df = pd.DataFrame([
+            {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level['value'])}
+            for ts, level in data.items()
+        ])
+        return data_df
     else:
-        st.error(f"Error: {response.status_code} - {response.text}")
-    return None
-
-# Function to modify the JSON format to Pandas DataFrame
-@st.cache_data
-def modify_json(json_data):
-    try:
-        # Extract 'Level' data from JSON
-        level_data = json_data.get("Level", [])
-
-        # Create DataFrame
-        data = pd.DataFrame(level_data)
-
-        # Convert timestamps to datetime format
-        data['Timestamp'] = pd.to_datetime(data['ts'], unit='ms')
-
-        # Keep only relevant columns
-        data = data[['Timestamp', 'value']]
-
-        # Rename columns
-        data.columns = ['Timestamp', 'Level']
-
-        # Drop rows with missing timestamps
-        data.dropna(subset=['Timestamp'], inplace=True)
-
-        st.write(f"No. of data points in JSON file: {len(data)}")
-
-        # Run predictions
-        predict(data)
-    except Exception as e:
-        st.error(f"Error: {e}")
+        st.error("No data found for the selected device.")
+        return None
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
-
-# Header
 st.title('Waste Forecasting')
 
-# User selects a device
+# Device Selection
 selected_device_name = st.selectbox("Select a device", list(device_id_mapping.keys()))
 
 # Begin forecast when user presses the button
 if st.button("Forecast Now!"):
-    with st.spinner("Forecasting... Please wait."):
-        # Get raw telemetry
-        raw_telemetry = get_timeseries(device_id_mapping.get(selected_device_name))
-
-        # Only start modifying when there is raw telemetry
-        if raw_telemetry is not None:
-            # Modify the JSON file
-            modify_json(raw_telemetry)
+    with st.spinner("Fetching data and forecasting..."):
+        device_id = device_id_mapping[selected_device_name]
+        data = fetch_timeseries(device_id)
+        
+        if data is not None:
+            predict(data, selected_device_name)
