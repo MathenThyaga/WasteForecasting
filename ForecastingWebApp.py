@@ -35,6 +35,14 @@ device_id_mapping = {
 
 # Function to run the forecast and plot graph
 def predict(data, device_name):
+    # Display the data for debugging purposes
+    st.write("Data to be used for forecasting:", data)
+    
+    # Check if there is enough data
+    if data.shape[0] < 2:
+        st.error("Not enough data points for forecasting. Please add more data for this device.")
+        return
+
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']]
     df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
