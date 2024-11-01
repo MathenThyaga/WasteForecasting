@@ -35,14 +35,6 @@ device_id_mapping = {
 
 # Function to run the forecast and plot graph
 def predict(data, device_name):
-    # Display the data for debugging purposes
-    st.write("Data to be used for forecasting:", data)
-    
-    # Check if there is enough data
-    if data.shape[0] < 2:
-        st.error("Not enough data points for forecasting. Please add more data for this device.")
-        return
-
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']]
     df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
@@ -82,24 +74,21 @@ def fetch_timeseries(device_id):
     ref = db.reference(f'Devices/Level Sensor {device_id}/Level')
     data = ref.get()
 
-    # Check if data is a dictionary with timestamps
     if isinstance(data, dict):
         try:
+            # Extract each timestamp and the associated Level value
             data_df = pd.DataFrame([
-                {
-                    "Timestamp": pd.to_datetime(int(ts), unit='ms'), 
-                    "Level": float(level_data['value']) if 'value' in level_data else None
-                }
-                for ts, level_data in data.items()
+                {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level["Value"])}
+                for ts, level in data.items() if "Value" in level
             ])
-            data_df.dropna(subset=['Level'], inplace=True)  # Drop rows where Level is None
+            # Check if we have enough data points
+            if len(data_df) < 2:
+                st.error("Not enough data points for forecasting. Please add more data for this device.")
+                return None
             return data_df
         except Exception as e:
             st.error(f"Data format error: {e}")
             return None
-    elif isinstance(data, (int, float)):
-        st.error("Expected timeseries data, but received a single value. Ensure your Firebase structure includes timestamps.")
-        return None
     else:
         st.error("No data found or data format is unsupported.")
         return None
@@ -118,4 +107,6 @@ if st.button("Forecast Now!"):
         data = fetch_timeseries(device_id)
         
         if data is not None:
+            st.write("Data to be used for forecasting:")
+            st.dataframe(data)
             predict(data, selected_device_name)
