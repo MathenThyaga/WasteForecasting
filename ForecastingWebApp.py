@@ -34,7 +34,7 @@ device_id_mapping = {
 }
 
 # Function to run the forecast and plot graph
-def predict(data, device_name):
+def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']]
     df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
@@ -43,8 +43,8 @@ def predict(data, device_name):
     m = Prophet()
     m.fit(df_train)
 
-    # Create a DataFrame for future predictions (7 days)
-    future = m.make_future_dataframe(periods=7, freq='D')
+    # Create a DataFrame for future predictions
+    future = m.make_future_dataframe(periods=forecast_period, freq='D')
     forecast = m.predict(future)
 
     # Display success message
@@ -52,7 +52,7 @@ def predict(data, device_name):
 
     # Display forecast results
     st.subheader(f'Waste Forecast for {device_name}')
-    st.write(forecast[['ds', 'yhat']].tail(7).rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
+    st.write(forecast[['ds', 'yhat']].tail(forecast_period).rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
     
     # Show prediction graph with full width
     fig1 = plot_plotly(m, forecast)
@@ -100,6 +100,11 @@ st.title('Waste Forecasting')
 # Device Selection
 selected_device_name = st.selectbox("Select a device", list(device_id_mapping.keys()))
 
+# Forecast Period Selection
+forecast_period = st.selectbox("Select forecast period", ["1 Week", "1 Month", "1 Year"])
+period_mapping = {"1 Week": 7, "1 Month": 30, "1 Year": 365}
+forecast_period_days = period_mapping[forecast_period]
+
 # Begin forecast when user presses the button
 if st.button("Forecast Now!"):
     with st.spinner("Fetching data and forecasting..."):
@@ -109,4 +114,4 @@ if st.button("Forecast Now!"):
         if data is not None:
             st.write("Data to be used for forecasting:")
             st.dataframe(data)
-            predict(data, selected_device_name)
+            predict(data, selected_device_name, forecast_period_days)
