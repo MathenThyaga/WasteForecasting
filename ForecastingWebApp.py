@@ -54,9 +54,9 @@ def predict(data, device_name):
     st.subheader(f'Waste Forecast for {device_name}')
     st.write(forecast[['ds', 'yhat']].tail(7).rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
     
-    # Show prediction graph
+    # Show prediction graph with full width
     fig1 = plot_plotly(m, forecast)
-    st.plotly_chart(fig1)
+    st.plotly_chart(fig1, use_container_width=True)
 
     # Calculate performance metrics
     y_true = data['Level']
