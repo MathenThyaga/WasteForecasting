@@ -86,25 +86,14 @@ def predict(data, device_name, forecast_period):
         marker=dict(size=4)
     ))
 
-    # Plot forecasted values with a thicker line and a standout color
+    # Plot forecasted values with a straight red line
     fig.add_trace(go.Scatter(
         x=forecasted_data['ds'], 
         y=forecasted_data['yhat'], 
         mode='lines+markers', 
         name='Forecasted Values',
-        line=dict(color='red', width=4, dash='dot'),
+        line=dict(color='red', width=4),  # Straight red line
         marker=dict(size=6, color='red')  # Larger markers for better visibility
-    ))
-
-    # Optionally add confidence intervals for forecasted values
-    fig.add_trace(go.Scatter(
-        x=pd.concat([forecasted_data['ds'], forecasted_data['ds'][::-1]]),
-        y=pd.concat([forecasted_data['yhat_upper'], forecasted_data['yhat_lower'][::-1]]),
-        fill='toself',
-        fillcolor='rgba(255, 99, 71, 0.2)',  # Light red fill for confidence intervals
-        line=dict(color='rgba(255,255,255,0)'),
-        showlegend=True,
-        name='Confidence Interval'
     ))
 
     # Update layout for clarity
