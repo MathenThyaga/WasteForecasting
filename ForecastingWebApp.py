@@ -92,8 +92,8 @@ def predict(data, device_name, forecast_period):
         y=forecasted_data['yhat'], 
         mode='lines+markers', 
         name='Forecasted Values',
-        line=dict(color='red', width=4),  # Straight red line
-        marker=dict(size=6, color='red')  # Larger markers for better visibility
+        line=dict(color='black', width=4),  # Straight red line
+        marker=dict(size=6, color='black')  # Larger markers for better visibility
     ))
 
     # Update layout for clarity
