@@ -56,6 +56,16 @@ def predict(data, device_name, forecast_period):
     
     # Show prediction graph with full width
     fig1 = plot_plotly(m, forecast)
+
+    # CUSTOMIZATION: Adjust chart display settings
+    fig1.update_traces(marker=dict(opacity=0))  # Hide scatter markers
+    fig1.update_traces(line=dict(width=3, shape='spline'))  # Smooth, thicker lines
+    fig1.update_layout(title=f"Forecast Chart for {device_name}",
+                       xaxis_title="Date",
+                       yaxis_title="Predicted Waste Levels (cm)",
+                       template="plotly_white")
+
+    # Render the customized chart
     st.plotly_chart(fig1, use_container_width=True)
 
     # Calculate performance metrics
