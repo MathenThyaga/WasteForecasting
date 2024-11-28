@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
 from prophet import Prophet
-from prophet.plot import plot_plotly
-import json
-import firebase_admin
+import plotly.graph_objects as go
 from firebase_admin import credentials, db
+import firebase_admin
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import math
 
@@ -33,41 +32,6 @@ device_id_mapping = {
     "Level Sensor 13": "13"
 }
 
-# Function to run the forecast and plot graph
-def predict(data, device_name, forecast_period):
-    # Prepare data for Prophet
-    df_train = data[['Timestamp', 'Level']]
-    df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
-
-    # Initialize and fit the model
-    m = Prophet()
-    m.fit(df_train)
-
-    # Create a DataFrame for future predictions
-    future = m.make_future_dataframe(periods=forecast_period, freq='D')
-    forecast = m.predict(future)
-
-    # Display success message
-    st.success("Forecasting done! Hooray!")
-
-    # Display forecast results
-    st.subheader(f'Waste Forecast for {device_name}')
-    st.write(forecast[['ds', 'yhat']].tail(forecast_period).rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
-    
-    # Show prediction graph with full width
-    fig1 = plot_plotly(m, forecast)
-    st.plotly_chart(fig1, use_container_width=True)
-
-    # Calculate performance metrics
-    y_true = data['Level']
-    y_pred = forecast['yhat'][:len(y_true)]
-    MAE = mean_absolute_error(y_true, y_pred)
-    RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
-
-    st.subheader('Performance Metrics of the Forecast')
-    st.write(f'Mean Absolute Error: {MAE}')
-    st.write(f'Root Mean Squared Error: {RMSE}')
-
 # Function to fetch timeseries data from Firebase Realtime Database
 @st.cache_data
 def fetch_timeseries(device_id):
@@ -92,6 +56,70 @@ def fetch_timeseries(device_id):
     else:
         st.error("No data found or data format is unsupported.")
         return None
+
+# Function to run the forecast and plot graph
+def predict(data, device_name, forecast_period):
+    # Prepare data for Prophet
+    df_train = data[['Timestamp', 'Level']]
+    df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
+
+    # Initialize and fit the model
+    m = Prophet()
+    m.fit(df_train)
+
+    # Create a DataFrame for future predictions
+    future = m.make_future_dataframe(periods=forecast_period, freq='D')
+    forecast = m.predict(future)
+
+    # Split data into historical and forecast
+    historical_data = df_train
+    forecasted_data = forecast[forecast['ds'] > historical_data['ds'].max()]
+
+    # Plot historical values
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=historical_data['ds'], 
+        y=historical_data['y'], 
+        mode='lines+markers', 
+        name='Historical Values',
+        line=dict(color='blue'),
+        marker=dict(size=4)
+    ))
+
+    # Plot forecasted values
+    fig.add_trace(go.Scatter(
+        x=forecasted_data['ds'], 
+        y=forecasted_data['yhat'], 
+        mode='lines', 
+        name='Forecasted Values',
+        line=dict(color='orange', dash='dash')
+    ))
+
+    # Update layout for clarity
+    fig.update_layout(
+        title=f"Waste Level Forecast for {device_name}",
+        xaxis_title="Date",
+        yaxis_title="Waste Levels (cm)",
+        template="plotly_dark",
+        showlegend=True
+    )
+
+    # Show the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Display forecast results for the forecast period
+    st.subheader(f'Waste Forecast for {device_name}')
+    st.write(forecasted_data[['ds', 'yhat']].rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
+
+    # Calculate performance metrics
+    y_true = data['Level']
+    y_pred = forecast['yhat'][:len(y_true)]
+    MAE = mean_absolute_error(y_true, y_pred)
+    RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
+
+    st.subheader('Performance Metrics of the Forecast')
+    st.write(f'Mean Absolute Error: {MAE}')
+    st.write(f'Root Mean Squared Error: {RMSE}')
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
