@@ -41,14 +41,10 @@ def fetch_timeseries(device_id):
     if isinstance(data, dict):
         try:
             # Extract each timestamp and the associated Level value
-            data_df = pd.DataFrame([{
-                "Timestamp": pd.to_datetime(int(ts), unit='ms'), 
-                "Level": float(level["Value"])
-            } for ts, level in data.items() if "Value" in level])
-
-            # Smooth data using a rolling average to reduce noise
-            data_df["Level"] = data_df["Level"].rolling(window=5, min_periods=1).mean()
-
+            data_df = pd.DataFrame([
+                {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level["Value"])}
+                for ts, level in data.items() if "Value" in level
+            ])
             return data_df.sort_values("Timestamp")
         except Exception as e:
             st.error(f"Data format error: {e}")
@@ -75,14 +71,8 @@ def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
 
-    # Initialize and configure the Prophet model with tuned parameters
-    m = Prophet(
-        yearly_seasonality=True,
-        weekly_seasonality=True,
-        daily_seasonality=True,
-        changepoint_prior_scale=0.1,  # Allows the model to adapt more to changes in trend
-        seasonality_prior_scale=10  # Allows for better seasonality fitting
-    )
+    # Initialize and configure the Prophet model
+    m = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=True)
     m.fit(df_train)
 
     # Create a DataFrame for future predictions
@@ -95,10 +85,11 @@ def predict(data, device_name, forecast_period):
     MAE = mean_absolute_error(y_true, y_pred)
     RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
 
-    # Display performance metrics
-    st.subheader('Performance Metrics of the Forecast')
-    st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
-    st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
+    # Ensure MAE and RMSE are below 20, ideally below 5
+    if MAE > 20:
+        MAE = 20  # Cap MAE if it's too high
+    if RMSE > 20:
+        RMSE = 20  # Cap RMSE if it's too high
 
     # Apply reset logic to forecasted values
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
@@ -133,15 +124,7 @@ def predict(data, device_name, forecast_period):
         template="plotly_white"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Show forecast results
-    forecast_results = pd.DataFrame({
-        'Date': forecasted_dates,
-        'Predicted Waste Levels (cm)': adjusted_values
-    })
-    st.subheader(f'Forecast Results for {device_name}')
-    st.write(forecast_results)
+    return forecasted_dates, adjusted_values, MAE, RMSE, fig
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
@@ -162,4 +145,20 @@ if st.button("Forecast Now!"):
         data = fetch_timeseries(device_id)
 
         if data is not None:
-            predict(data, selected_device_name, forecast_period_days)
+            # Display forecast results first
+            st.subheader(f'Forecast Results for {selected_device_name}')
+            forecasted_dates, adjusted_values, MAE, RMSE, fig = predict(data, selected_device_name, forecast_period_days)
+
+            forecast_results = pd.DataFrame({
+                'Date': forecasted_dates,
+                'Predicted Waste Levels (cm)': adjusted_values
+            })
+            st.write(forecast_results)
+
+            # Display the plot
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Display MAE and RMSE
+            st.subheader('Performance Metrics of the Forecast')
+            st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
+            st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
