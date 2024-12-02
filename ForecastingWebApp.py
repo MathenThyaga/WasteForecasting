@@ -45,11 +45,13 @@ def fetch_timeseries(device_id):
                 {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level["Value"])}
                 for ts, level in data.items() if "Value" in level
             ])
-            # Check if we have enough data points
-            if len(data_df) < 2:
-                st.error("Not enough data points for forecasting. Please add more data for this device.")
+            # Remove outliers (values significantly above or below expected range)
+            data_df = data_df[(data_df["Level"] >= 0) & (data_df["Level"] <= 100)]
+            # Ensure enough data points are available
+            if len(data_df) < 20:
+                st.error("Not enough data points for accurate forecasting. Please add more data.")
                 return None
-            return data_df
+            return data_df.sort_values("Timestamp")
         except Exception as e:
             st.error(f"Data format error: {e}")
             return None
@@ -60,11 +62,15 @@ def fetch_timeseries(device_id):
 # Function to run the forecast and plot graph
 def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
-    df_train = data[['Timestamp', 'Level']]
-    df_train = df_train.rename(columns={"Timestamp": "ds", "Level": "y"})
+    df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
 
-    # Initialize and fit the model
-    m = Prophet()
+    # Initialize and configure the Prophet model
+    m = Prophet(
+        seasonality_mode='multiplicative',  # Better for large fluctuations
+        changepoint_prior_scale=0.5,  # Make trend detection more flexible
+    )
+    # Add custom weekly seasonality
+    m.add_seasonality(name='weekly', period=7, fourier_order=3)
     m.fit(df_train)
 
     # Create a DataFrame for future predictions
@@ -74,6 +80,19 @@ def predict(data, device_name, forecast_period):
     # Split data into historical and forecast
     historical_data = df_train
     forecasted_data = forecast[forecast['ds'] > historical_data['ds'].max()]
+
+    # Calculate performance metrics
+    y_true = historical_data['y']
+    y_pred = forecast.loc[:len(y_true) - 1, 'yhat']
+    MAE = mean_absolute_error(y_true, y_pred)
+    RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
+
+    # Display performance metrics and warn if above threshold
+    st.subheader('Performance Metrics of the Forecast')
+    st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
+    st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
+    if MAE > 20 or RMSE > 20:
+        st.warning("The forecast error is above acceptable thresholds. Consider refining the data or model parameters.")
 
     # Plot historical values
     fig = go.Figure()
@@ -86,14 +105,14 @@ def predict(data, device_name, forecast_period):
         marker=dict(size=4)
     ))
 
-    # Plot forecasted values with a straight red line
+    # Plot forecasted values with a straight black line
     fig.add_trace(go.Scatter(
         x=forecasted_data['ds'], 
         y=forecasted_data['yhat'], 
         mode='lines+markers', 
         name='Forecasted Values',
-        line=dict(color='black', width=4),  # Straight red line
-        marker=dict(size=6, color='black')  # Larger markers for better visibility
+        line=dict(color='black', width=4),
+        marker=dict(size=6, color='black')
     ))
 
     # Update layout for clarity
@@ -111,16 +130,6 @@ def predict(data, device_name, forecast_period):
     # Display forecast results for the forecast period
     st.subheader(f'Waste Forecast for {device_name}')
     st.write(forecasted_data[['ds', 'yhat']].rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
-
-    # Calculate performance metrics
-    y_true = data['Level']
-    y_pred = forecast['yhat'][:len(y_true)]
-    MAE = mean_absolute_error(y_true, y_pred)
-    RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
-
-    st.subheader('Performance Metrics of the Forecast')
-    st.write(f'Mean Absolute Error: {MAE}')
-    st.write(f'Root Mean Squared Error: {RMSE}')
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
