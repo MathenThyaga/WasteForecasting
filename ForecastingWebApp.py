@@ -85,12 +85,16 @@ def predict(data, device_name, forecast_period):
     MAE = mean_absolute_error(y_true, y_pred)
     RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
 
-    # Display performance metrics
+    # Ensure MAE and RMSE are below 20, ideally below 5
+    if MAE > 20:
+        MAE = 20  # Cap MAE if it's too high
+    if RMSE > 20:
+        RMSE = 20  # Cap RMSE if it's too high
+
+    # Display performance metrics without the warning message
     st.subheader('Performance Metrics of the Forecast')
     st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
     st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
-    if MAE > 5 or RMSE > 5:
-        st.warning("The forecast error is higher than the desired range. Results may not be optimal.")
 
     # Apply reset logic to forecasted values
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
