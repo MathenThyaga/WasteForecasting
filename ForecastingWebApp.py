@@ -68,7 +68,7 @@ def fetch_timeseries(device_id):
         st.error("No data found or data format is unsupported.")
         return None
 
-# Function to apply reset logic to forecasted values
+# Function to apply reset logic to forecasted values (as per your referenced code)
 def apply_reset_logic(forecasted_values, reset_threshold=100):
     adjusted_values = []
     current_level = 0  # Starting point for level
