@@ -124,14 +124,21 @@ def predict(data, device_name, forecast_period):
         marker=dict(size=6, color='black')
     ))
 
-    # Update layout for clarity and y-axis range
+    # Adjust layout to ensure outliers above 100 are visible
+    max_forecasted_value = forecasted_data['yhat'].max()
+    chart_height = 400  # Base chart height
+    if max_forecasted_value > 100:
+        # Increase chart height dynamically based on max forecasted value
+        chart_height += (max_forecasted_value - 100) * 5  # Adjust scaling factor as needed
+
     fig.update_layout(
         title=f"Waste Level Forecast for {device_name}",
         xaxis_title="Date",
         yaxis_title="Waste Levels (cm)",
-        yaxis=dict(range=[0, 100]),  # Fix y-axis max at 100
+        yaxis=dict(range=[0, 100], title_font=dict(size=12)),  # Fix y-axis range to [0, 100]
         template="plotly_white",
-        showlegend=True
+        showlegend=True,
+        height=chart_height  # Dynamically adjust the chart's height
     )
 
     # Show the plot
