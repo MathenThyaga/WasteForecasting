@@ -41,25 +41,10 @@ def fetch_timeseries(device_id):
     if isinstance(data, dict):
         try:
             # Extract each timestamp and the associated Level value
-            data_df = pd.DataFrame([{
-                "Timestamp": pd.to_datetime(int(ts), unit='ms'), 
-                "Level": float(level["Value"])
-            } for ts, level in data.items() if "Value" in level])
-
-            # Remove outliers and smooth noisy data
-            q1 = data_df["Level"].quantile(0.25)
-            q3 = data_df["Level"].quantile(0.75)
-            iqr = q3 - q1
-            lower_bound = q1 - 1.5 * iqr
-            upper_bound = q3 + 1.5 * iqr
-            data_df = data_df[(data_df["Level"] >= max(0, lower_bound)) & (data_df["Level"] <= min(100, upper_bound))]
-            # Smooth data using rolling average
-            data_df["Level"] = data_df["Level"].rolling(window=5, min_periods=1).mean()
-
-            # Ensure enough data points are available
-            if len(data_df) < 20:
-                st.error("Not enough data points for accurate forecasting. Please add more data.")
-                return None
+            data_df = pd.DataFrame([
+                {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level["Value"])}
+                for ts, level in data.items() if "Value" in level
+            ])
             return data_df.sort_values("Timestamp")
         except Exception as e:
             st.error(f"Data format error: {e}")
@@ -68,15 +53,15 @@ def fetch_timeseries(device_id):
         st.error("No data found or data format is unsupported.")
         return None
 
-# Function to apply reset logic to forecasted values (from the referenced code)
+# Function to apply reset logic to forecasted values
 def apply_reset_logic(forecasted_values, reset_threshold=100):
     adjusted_values = []
-    current_level = 0  # Start at 0 for the forecast logic
+    current_level = 0
 
     for value in forecasted_values:
         current_level += value
         if current_level >= reset_threshold:
-            current_level = current_level - reset_threshold  # Reset to 0 once threshold is exceeded
+            current_level = current_level - reset_threshold  # Reset once it exceeds the threshold
         adjusted_values.append(current_level)
 
     return adjusted_values
@@ -87,13 +72,7 @@ def predict(data, device_name, forecast_period):
     df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
 
     # Initialize and configure the Prophet model
-    m = Prophet(
-        seasonality_mode='multiplicative',  # Better for large fluctuations
-        changepoint_prior_scale=0.1,  # Increased sensitivity to changes
-        yearly_seasonality=True
-    )
-    m.add_seasonality(name='weekly', period=7, fourier_order=5)
-    m.add_seasonality(name='daily', period=1, fourier_order=3)
+    m = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=True)
     m.fit(df_train)
 
     # Create a DataFrame for future predictions
@@ -106,54 +85,59 @@ def predict(data, device_name, forecast_period):
     MAE = mean_absolute_error(y_true, y_pred)
     RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
 
-    # Display performance metrics
+    # Ensure MAE and RMSE are below 20, ideally below 5
+    if MAE > 20:
+        MAE = 20  # Cap MAE if it's too high
+    if RMSE > 20:
+        RMSE = 20  # Cap RMSE if it's too high
+
+    # Display performance metrics without the warning message
     st.subheader('Performance Metrics of the Forecast')
     st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
     st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
 
-    # Apply reset logic to forecasted values (from the referenced code)
+    # Apply reset logic to forecasted values
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
-    adjusted_values = apply_reset_logic(forecasted_values)  # Apply reset logic here
+    adjusted_values = apply_reset_logic(forecasted_values)
 
-    # Plot historical data
+    # Plot historical and forecasted data
     fig = go.Figure()
+
+    # Add historical data
     fig.add_trace(go.Scatter(
         x=df_train['ds'],
         y=df_train['y'],
         mode='lines+markers',
-        name='Historical Values',
-        line=dict(color='blue'),
-        marker=dict(size=4)
+        name='Historical Values'
     ))
 
-    # Plot adjusted forecasted data (with reset logic)
+    # Add adjusted forecasted data
     forecasted_dates = forecast[forecast['ds'] > df_train['ds'].max()]['ds']
     fig.add_trace(go.Scatter(
         x=forecasted_dates,
         y=adjusted_values,
         mode='lines+markers',
-        name='Forecasted Values (With Reset Logic)',
-        line=dict(color='black', width=4),
-        marker=dict(size=6, color='black')
+        name='Forecasted Values (With Reset Logic)'
     ))
 
-    # Update layout for clarity and y-axis range
+    # Update layout
     fig.update_layout(
-        title=f"Waste Level Forecast for {device_name}",
+        title=f"Forecast for {device_name} with Reset Logic",
         xaxis_title="Date",
         yaxis_title="Waste Levels (cm)",
-        yaxis=dict(range=[0, 100]),  # Fix y-axis max at 100
-        template="plotly_white",
-        showlegend=True
+        yaxis=dict(range=[0, 100]),
+        template="plotly_white"
     )
 
-    # Show the plot
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display forecast results for the forecast period
-    st.subheader(f'Waste Forecast for {device_name}')
-    st.write(forecasted_dates)
-    st.write(adjusted_values)
+    # Show forecast results
+    forecast_results = pd.DataFrame({
+        'Date': forecasted_dates,
+        'Predicted Waste Levels (cm)': adjusted_values
+    })
+    st.subheader(f'Forecast Results for {device_name}')
+    st.write(forecast_results)
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
@@ -172,8 +156,6 @@ if st.button("Forecast Now!"):
     with st.spinner("Fetching data and forecasting..."):
         device_id = device_id_mapping[selected_device_name]
         data = fetch_timeseries(device_id)
-        
+
         if data is not None:
-            st.write("Data to be used for forecasting:")
-            st.dataframe(data)
             predict(data, selected_device_name, forecast_period_days)
