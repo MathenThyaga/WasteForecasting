@@ -45,8 +45,16 @@ def fetch_timeseries(device_id):
                 {"Timestamp": pd.to_datetime(int(ts), unit='ms'), "Level": float(level["Value"])}
                 for ts, level in data.items() if "Value" in level
             ])
-            # Remove outliers (keep range 0-100 for Level values)
-            data_df = data_df[(data_df["Level"] >= 0) & (data_df["Level"] <= 100)]
+            # Remove outliers and smooth noisy data
+            q1 = data_df["Level"].quantile(0.25)
+            q3 = data_df["Level"].quantile(0.75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            data_df = data_df[(data_df["Level"] >= max(0, lower_bound)) & (data_df["Level"] <= min(100, upper_bound))]
+            # Smooth data using rolling average
+            data_df["Level"] = data_df["Level"].rolling(window=5, min_periods=1).mean()
+            # Ensure enough data points are available
             if len(data_df) < 20:
                 st.error("Not enough data points for accurate forecasting. Please add more data.")
                 return None
@@ -65,64 +73,63 @@ def predict(data, device_name, forecast_period):
 
     # Initialize and configure the Prophet model
     m = Prophet(
-        seasonality_mode='multiplicative', 
-        changepoint_prior_scale=0.8,  # Flexibility for changes in trend
+        seasonality_mode='multiplicative',  # Better for large fluctuations
+        changepoint_prior_scale=0.2,  # Increased sensitivity to changes
+        yearly_seasonality=True
     )
-    # Add custom seasonalities
-    m.add_seasonality(name='weekly', period=7, fourier_order=5)
-    m.add_seasonality(name='monthly', period=30.5, fourier_order=10)
+    # Add custom weekly and daily seasonality
+    m.add_seasonality(name='weekly', period=7, fourier_order=3)
+    m.add_seasonality(name='daily', period=1, fourier_order=3)
     m.fit(df_train)
 
     # Create a DataFrame for future predictions
     future = m.make_future_dataframe(periods=forecast_period, freq='D')
     forecast = m.predict(future)
 
+    # Split data into historical and forecast
+    historical_data = df_train
+    forecasted_data = forecast[forecast['ds'] > historical_data['ds'].max()]
+
     # Calculate performance metrics
-    y_true = df_train['y']
-    y_pred = forecast['yhat'][:len(y_true)]
+    y_true = historical_data['y']
+    y_pred = forecast.loc[:len(y_true) - 1, 'yhat']
     MAE = mean_absolute_error(y_true, y_pred)
     RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
 
-    # Refit the model with a stricter changepoint_prior_scale if errors are too high
+    # Display performance metrics
+    st.subheader('Performance Metrics of the Forecast')
+    st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
+    st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
     if MAE > 5 or RMSE > 5:
-        m = Prophet(
-            seasonality_mode='multiplicative',
-            changepoint_prior_scale=0.3,  # Stricter model to reduce overfitting
-        )
-        m.add_seasonality(name='weekly', period=7, fourier_order=5)
-        m.fit(df_train)
-        forecast = m.predict(future)
-        y_pred = forecast['yhat'][:len(y_true)]
-        MAE = mean_absolute_error(y_true, y_pred)
-        RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
+        st.warning("The forecast error is higher than the desired range. Results may not be optimal.")
 
     # Plot historical values
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=df_train['ds'], 
-        y=df_train['y'], 
+        x=historical_data['ds'], 
+        y=historical_data['y'], 
         mode='lines+markers', 
         name='Historical Values',
         line=dict(color='blue'),
         marker=dict(size=4)
     ))
 
-    # Plot forecasted values with straight red line
+    # Plot forecasted values
     fig.add_trace(go.Scatter(
-        x=forecast['ds'], 
-        y=forecast['yhat'], 
+        x=forecasted_data['ds'], 
+        y=forecasted_data['yhat'], 
         mode='lines+markers', 
         name='Forecasted Values',
         line=dict(color='black', width=4),
         marker=dict(size=6, color='black')
     ))
 
-    # Update layout to limit y-axis to 0-100 but allow predictions >100
+    # Update layout for clarity and y-axis range
     fig.update_layout(
         title=f"Waste Level Forecast for {device_name}",
         xaxis_title="Date",
         yaxis_title="Waste Levels (cm)",
-        yaxis=dict(range=[0, 100]),  # Restrict visual range
+        yaxis=dict(range=[0, 100]),  # Fix y-axis max at 100
         template="plotly_white",
         showlegend=True
     )
@@ -132,12 +139,7 @@ def predict(data, device_name, forecast_period):
 
     # Display forecast results for the forecast period
     st.subheader(f'Waste Forecast for {device_name}')
-    st.write(forecast[['ds', 'yhat']].rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
-
-    # Display performance metrics
-    st.subheader('Performance Metrics of the Forecast')
-    st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
-    st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
+    st.write(forecasted_data[['ds', 'yhat']].rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
