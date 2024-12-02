@@ -66,7 +66,7 @@ def apply_reset_logic(forecasted_values, reset_threshold=100):
 
     return adjusted_values
 
-# Function to run the forecast and plot graph with reset logic
+# Function to run the forecast, calculate metrics, and plot graph
 def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
@@ -78,6 +78,19 @@ def predict(data, device_name, forecast_period):
     # Create a DataFrame for future predictions
     future = m.make_future_dataframe(periods=forecast_period, freq='D')
     forecast = m.predict(future)
+
+    # Calculate performance metrics
+    y_true = df_train['y']
+    y_pred = forecast.loc[:len(y_true) - 1, 'yhat']
+    MAE = mean_absolute_error(y_true, y_pred)
+    RMSE = math.sqrt(mean_squared_error(y_true, y_pred))
+
+    # Display performance metrics
+    st.subheader('Performance Metrics of the Forecast')
+    st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
+    st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
+    if MAE > 5 or RMSE > 5:
+        st.warning("The forecast error is higher than the desired range. Results may not be optimal.")
 
     # Apply reset logic to forecasted values
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
