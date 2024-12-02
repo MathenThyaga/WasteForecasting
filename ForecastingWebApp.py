@@ -71,12 +71,12 @@ def fetch_timeseries(device_id):
 # Function to apply reset logic to forecasted values
 def apply_reset_logic(forecasted_values, reset_threshold=100):
     adjusted_values = []
-    current_level = 0
+    current_level = 0  # Starting point for level
 
     for value in forecasted_values:
         current_level += value
         if current_level >= reset_threshold:
-            current_level = current_level - reset_threshold  # Reset once it exceeds the threshold
+            current_level = current_level - reset_threshold  # Reset if threshold exceeded
         adjusted_values.append(current_level)
 
     return adjusted_values
@@ -85,7 +85,7 @@ def apply_reset_logic(forecasted_values, reset_threshold=100):
 def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
-    
+
     # Initialize and configure the Prophet model
     m = Prophet(
         seasonality_mode='multiplicative',  # Better for large fluctuations
@@ -113,14 +113,14 @@ def predict(data, device_name, forecast_period):
 
     # Apply reset logic to forecasted values
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
-    adjusted_values = apply_reset_logic(forecasted_values)
+    adjusted_values = apply_reset_logic(forecasted_values)  # Apply reset logic here
 
     # Plot historical data
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=df_train['ds'], 
-        y=df_train['y'], 
-        mode='lines+markers', 
+        x=df_train['ds'],
+        y=df_train['y'],
+        mode='lines+markers',
         name='Historical Values',
         line=dict(color='blue'),
         marker=dict(size=4)
@@ -129,9 +129,9 @@ def predict(data, device_name, forecast_period):
     # Plot adjusted forecasted data
     forecasted_dates = forecast[forecast['ds'] > df_train['ds'].max()]['ds']
     fig.add_trace(go.Scatter(
-        x=forecasted_dates, 
-        y=adjusted_values, 
-        mode='lines+markers', 
+        x=forecasted_dates,
+        y=adjusted_values,
+        mode='lines+markers',
         name='Forecasted Values (With Reset Logic)',
         line=dict(color='black', width=4),
         marker=dict(size=6, color='black')
