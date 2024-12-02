@@ -68,15 +68,15 @@ def fetch_timeseries(device_id):
         st.error("No data found or data format is unsupported.")
         return None
 
-# Function to apply reset logic to forecasted values (as per your referenced code)
+# Function to apply reset logic to forecasted values (from the referenced code)
 def apply_reset_logic(forecasted_values, reset_threshold=100):
     adjusted_values = []
-    current_level = 0  # Starting point for level
+    current_level = 0  # Start at 0 for the forecast logic
 
     for value in forecasted_values:
         current_level += value
         if current_level >= reset_threshold:
-            current_level = current_level - reset_threshold  # Reset if threshold exceeded
+            current_level = current_level - reset_threshold  # Reset to 0 once threshold is exceeded
         adjusted_values.append(current_level)
 
     return adjusted_values
@@ -111,7 +111,7 @@ def predict(data, device_name, forecast_period):
     st.write(f'Mean Absolute Error (MAE): {MAE:.2f}')
     st.write(f'Root Mean Squared Error (RMSE): {RMSE:.2f}')
 
-    # Apply reset logic to forecasted values
+    # Apply reset logic to forecasted values (from the referenced code)
     forecasted_values = forecast[forecast['ds'] > df_train['ds'].max()]['yhat'].tolist()
     adjusted_values = apply_reset_logic(forecasted_values)  # Apply reset logic here
 
@@ -126,7 +126,7 @@ def predict(data, device_name, forecast_period):
         marker=dict(size=4)
     ))
 
-    # Plot adjusted forecasted data
+    # Plot adjusted forecasted data (with reset logic)
     forecasted_dates = forecast[forecast['ds'] > df_train['ds'].max()]['ds']
     fig.add_trace(go.Scatter(
         x=forecasted_dates,
