@@ -66,7 +66,7 @@ def fetch_timeseries(device_id):
         st.error("No data found or data format is unsupported.")
         return None
 
-# Function to run the forecast and plot graph
+# Function to run the forecast and plot graph with reset logic
 def predict(data, device_name, forecast_period):
     # Prepare data for Prophet
     df_train = data[['Timestamp', 'Level']].rename(columns={"Timestamp": "ds", "Level": "y"})
@@ -89,6 +89,19 @@ def predict(data, device_name, forecast_period):
     # Split data into historical and forecast
     historical_data = df_train
     forecasted_data = forecast[forecast['ds'] > historical_data['ds'].max()]
+
+    # Reset predicted levels when they hit 100
+    forecasted_data['adjusted_yhat'] = forecasted_data['yhat']  # Copy forecasted values
+    reset_threshold = 100
+    current_level = 0
+
+    for i in range(len(forecasted_data)):
+        predicted_value = forecasted_data.iloc[i]['adjusted_yhat']
+        if current_level + predicted_value >= reset_threshold:  # If it overflows
+            current_level = (current_level + predicted_value) - reset_threshold
+        else:
+            current_level += predicted_value
+        forecasted_data.at[i, 'adjusted_yhat'] = current_level
 
     # Calculate performance metrics
     y_true = historical_data['y']
@@ -114,39 +127,32 @@ def predict(data, device_name, forecast_period):
         marker=dict(size=4)
     ))
 
-    # Plot forecasted values
+    # Plot adjusted forecasted values
     fig.add_trace(go.Scatter(
         x=forecasted_data['ds'], 
-        y=forecasted_data['yhat'], 
+        y=forecasted_data['adjusted_yhat'], 
         mode='lines+markers', 
-        name='Forecasted Values',
+        name='Forecasted Values (Adjusted)',
         line=dict(color='black', width=4),
         marker=dict(size=6, color='black')
     ))
 
-    # Adjust layout to ensure outliers above 100 are visible
-    max_forecasted_value = forecasted_data['yhat'].max()
-    chart_height = 400  # Base chart height
-    if max_forecasted_value > 100:
-        # Increase chart height dynamically based on max forecasted value
-        chart_height += (max_forecasted_value - 100) * 5  # Adjust scaling factor as needed
-
+    # Update layout for clarity and y-axis range
     fig.update_layout(
-        title=f"Waste Level Forecast for {device_name}",
+        title=f"Waste Level Forecast for {device_name} (with Reset Logic)",
         xaxis_title="Date",
         yaxis_title="Waste Levels (cm)",
-        yaxis=dict(range=[0, 100], title_font=dict(size=12)),  # Fix y-axis range to [0, 100]
+        yaxis=dict(range=[0, 100]),  # Fix y-axis max at 100
         template="plotly_white",
-        showlegend=True,
-        height=chart_height  # Dynamically adjust the chart's height
+        showlegend=True
     )
 
     # Show the plot
     st.plotly_chart(fig, use_container_width=True)
 
     # Display forecast results for the forecast period
-    st.subheader(f'Waste Forecast for {device_name}')
-    st.write(forecasted_data[['ds', 'yhat']].rename(columns={"ds": "Date", "yhat": "Predicted Waste Levels (cm)"}))
+    st.subheader(f'Waste Forecast for {device_name} (with Reset Logic)')
+    st.write(forecasted_data[['ds', 'adjusted_yhat']].rename(columns={"ds": "Date", "adjusted_yhat": "Predicted Waste Levels (cm)"}))
 
 ########### Streamlit app setup ################
 st.set_page_config(layout='wide')
