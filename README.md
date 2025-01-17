@@ -7,7 +7,7 @@ https://wasteforecasting-jjca749rrdzm6b6hhvbvwx.streamlit.app/
 https://waste-management-system-841c1.web.app/
 
 # Overview
-
+This project aims to empower stakeholders to make informed decisions through proactive planning, resource allocation, and effective garbage collection, encouraging sustainable waste management practices and contributing to Malaysia's environmental preservation efforts
 
 # Features
 
