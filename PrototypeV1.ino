@@ -1,129 +1,192 @@
 #include <WiFiNINA.h>
-#include <PubSubClient.h>  # used to communicate with MQTT broker
+#include <Firebase_Arduino_WiFiNINA.h>
+#include <WiFiUdp.h>
 
-//***********Connectivity***************************
-#define ssid "Mathen's Iphone"
-#define pass "mathen24"
+// Firebase configuration
+#define FIREBASE_HOST "waste-management-system-841c1-default-rtdb.asia-southeast1.firebasedatabase.app"
+#define FIREBASE_AUTH "kBb9EAonV23wNiccVA3GMJwFrdONZ9nxewbwabRM"
+#define WIFI_SSID "Mathen"
+#define WIFI_PASSWORD "mathen24"
 
-const char* mqttServer = "mqtt.thingsboard.cloud"; // ThingsBoard MQTT broker URL
-const char* deviceId = "level13"; // mqtt client ID
+FirebaseData firebaseData;
+WiFiUDP udp; // For NTP
 
-WiFiClient wifiClient;
-PubSubClient client(wifiClient);
+// NTP Configuration
+const char* ntpServer = "pool.ntp.org";
+const int ntpPort = 123;
+const int timeZoneOffset = 28800; // Offset in seconds for your timezone (e.g., 8 hours for UTC+8)
 
-//**************Ultrasonic sensor*******************
-//sensor 1 to check waste level
-const int sensor1TrigPin = 2;    // Ultrasonic sensor 1 trigger pin
-const int sensor1EchoPin = 3;    // Ultrasonic sensor 1 echo pin
-//sensor 2 to check whether bin is opened or closed
-const int sensor2TrigPin = 4;    // Ultrasonic sensor 2 trigger pin
-const int sensor2EchoPin = 5;    // Ultrasonic sensor 2 echo pin
-const int thresholdDistance = 5; // Threshold distance for sensor 2 in centimeters (5cm)
-float duration, distance, level;  // variables for sensor measurements
+// Ultrasonic sensor pins
+const int sensor1TrigPin = 2;
+const int sensor1EchoPin = 3;
+const int sensor2TrigPin = 4;
+const int sensor2EchoPin = 5;
+const int thresholdDistance = 5;
+
+float duration, distance, level;
+
+// Firebase base path
+String basePath = "/Devices/LevelSensorArduinoBin/Level";
 
 void setup() {
   Serial.begin(9600);
-  connectWiFi(); //connect to hotspot
-  client.setServer(mqttServer, 1883); // MQTT broker port
-  pinMode(sensor1TrigPin, OUTPUT);  // Set sensor 1 trigger pin as output
-  pinMode(sensor1EchoPin, INPUT);   // Set sensor 1 echo pin as input
-  pinMode(sensor2TrigPin, OUTPUT);  // Set sensor 2 trigger pin as output
-  pinMode(sensor2EchoPin, INPUT);   // Set sensor 2 echo pin as input
+  Serial.println("Initializing...");
+
+  pinMode(sensor1TrigPin, OUTPUT);
+  pinMode(sensor1EchoPin, INPUT);
+  pinMode(sensor2TrigPin, OUTPUT);
+  pinMode(sensor2EchoPin, INPUT);
+
+  // Connect to Wi-Fi
+  Serial.print("Connecting to WiFi...");
+  int status = WL_IDLE_STATUS;
+  int retries = 5;
+  while (status != WL_CONNECTED && retries > 0) {
+    status = WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print(".");
+    delay(1000);
+    retries--;
+  }
+  if (status == WL_CONNECTED) {
+    Serial.println(" Connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("WiFi connection failed!");
+  }
+
+  // Initialize Firebase
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH, WIFI_SSID, WIFI_PASSWORD);
+  Firebase.reconnectWiFi(true);
+
+  // Initialize NTP
+  udp.begin(ntpPort);
 }
 
 void loop() {
-  //connect to server first
-  if (!client.connected()) {    // check if MQTT client is connected; if not, calls 'reconnect()'
-    reconnect();
-  }
-  getAndSendLevel();
-  delay(30000); //delay 30 seconds before sending the next telemetry
-}
-
-//Wifi connection
-void connectWiFi() {
-  WiFi.begin(ssid, pass);
-  Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("Connected to Wi-Fi");
-}
-
-//MQTT connection
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    if (client.connect(deviceId)) {
-      Serial.println("connected");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
-    }
-  }
-}
-
-void getAndSendLevel() {
-  if (IsBinClosed()) {    //check if bin is closed
-    // Sensor 2 detected a distance less than the threshold, indicating the bin is closed
+  if (IsBinClosed()) {
     Serial.println("Bin is closed.");
-
-    // Delay to avoid interference from sensor 2
     delay(1000);
-
-    // Proceed to measure distance from sensor 1 for waste level
-    //if bin is closed, measure waste level using sensor 1
-    digitalWrite(sensor1TrigPin, LOW);
-    delayMicroseconds(2);
-    digitalWrite(sensor1TrigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(sensor1TrigPin, LOW);
-    duration = pulseIn(sensor1EchoPin, HIGH);
-    distance = duration * 0.034 / 2;
-    level = 35 - distance;
-
-    if(level<=0){
-      level = 0;
+    measureWasteLevel();
+    if (!updateFirebaseWithRetry()) {
+      logErrorToFirebase("Failed to update Firebase after retries.");
     }
-
-    // Print the measured distance from sensor 1 to the Serial Monitor
-    Serial.print("Sensor 1 Distance: ");
-    Serial.print(level);
-    Serial.println(" cm");
-
-    // Check if any reads failed and exit early (to try again).
-    if (isnan(distance)) {
-      Serial.println("Failed to read from Level sensor!");
-      return;
-    }
-
-    // Publish telemetry data to ThingsBoard using MQTT
-    String payload = "{\"Level\": " + String(level, 2) + "}";
-    char buffer[payload.length() + 1]; // Add space for null terminator
-    payload.toCharArray(buffer, payload.length() + 1); // Convert String to C-style string
-    client.publish("v1/devices/me/telemetry", buffer); // Publish the C-style string payload
-    Serial.println(buffer);
-
-  } else {   //if bin is open
-    Serial.println("Bin is open. Please wait for it to close");
+  } else {
+    Serial.println("Bin is open. Please wait for it to close.");
   }
-    
+
+  delay(15000); // Delay 15 seconds before the next measurement
+}
+
+void measureWasteLevel() {
+  digitalWrite(sensor1TrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(sensor1TrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(sensor1TrigPin, LOW);
+
+  duration = pulseIn(sensor1EchoPin, HIGH);
+  distance = duration * 0.034 / 2;
+  level = (35 - distance) * 100 / 35;
+
+  if (level < 0) level = 0;
+  if (level > 100) level = 100;
+
+  Serial.print("Measured waste level: ");
+  Serial.print(level);
+  Serial.println(" %");
 }
 
 bool IsBinClosed() {
-  // Measure distance from sensor 2 to determine whether bin is closed or opened
   digitalWrite(sensor2TrigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(sensor2TrigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(sensor2TrigPin, LOW);
+
   duration = pulseIn(sensor2EchoPin, HIGH);
   distance = duration * 0.034 / 2;
-  Serial.print("Sensor 2 Distance: ");
+
+  Serial.print("Sensor 2 distance: ");
   Serial.print(distance);
   Serial.println(" cm");
+
   return (distance <= thresholdDistance);
 }
+
+bool updateFirebaseWithRetry() {
+  unsigned long unixTimestamp = getNTPTime(); // Get the accurate UNIX timestamp
+
+  if (unixTimestamp == 0) {
+    Serial.println("Failed to obtain NTP time");
+    return false;
+  }
+
+  String timestampStr = String(unixTimestamp);
+  String path = basePath + "/" + timestampStr;
+
+  int retries = 3;
+  while (retries > 0) {
+    if (Firebase.setInt(firebaseData, path + "/Value", (int)level)) {
+      Serial.println("Waste level updated successfully in Firebase.");
+      Serial.print("Path: ");
+      Serial.println(path);
+      Serial.print("Value: ");
+      Serial.println((int)level);
+      return true;
+    } else {
+      Serial.print("Retrying Firebase update... ");
+      retries--;
+      delay(2000); // Wait 2 seconds before retrying
+    }
+  }
+
+  Serial.println("Failed to update Firebase after retries.");
+  return false;
+}
+
+void logErrorToFirebase(String errorMessage) {
+  String path = "/SystemLogs/LastError";
+  if (Firebase.setString(firebaseData, path, errorMessage)) {
+    Serial.println("Error logged to Firebase successfully.");
+  } else {
+    Serial.print("Failed to log error to Firebase: ");
+    Serial.println(firebaseData.errorReason());
+  }
+}
+
+unsigned long getNTPTime() {
+  udp.beginPacket(ntpServer, ntpPort);
+  byte packetBuffer[48] = {0};
+  packetBuffer[0] = 0b11100011;
+  udp.write(packetBuffer, 48);
+  udp.endPacket();
+
+  delay(1000);
+
+  int cb = udp.parsePacket();
+  if (cb == 0) {
+    Serial.println("No NTP response");
+    return 0;
+  }
+
+  udp.read(packetBuffer, 48);
+  unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
+  unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
+  unsigned long secsSince1900 = (highWord << 16 | lowWord);
+  unsigned long epoch = secsSince1900 - 2208988800UL + timeZoneOffset;
+
+  return epoch;
+}
+
+// Function to put the microcontroller into sleep mode
+/*
+void enterSleepMode() {
+  set_sleep_mode(SLEEP_MODE_IDLE);  // Set sleep mode to idle
+  sleep_enable();                   // Enable sleep mode
+  sleep_mode();                     // Put the microcontroller to sleep
+
+  // The microcontroller will wake up from sleep when the next interrupt occurs (e.g., timer or serial).
+  sleep_disable();                  // Disable sleep after wake-up
+}
+*/
