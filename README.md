@@ -10,7 +10,7 @@ https://waste-management-system-841c1.web.app/
 This project aims to empower stakeholders to make informed decisions through proactive planning, resource allocation, and effective garbage collection, encouraging sustainable waste management practices and contributing to Malaysia's environmental preservation efforts
 
 # Features
-1. # Web Application
+1. Web Application
    - Built using HTML, CSS & JavaScript
    - Hosted on Firebase Hosting
    - Native Frontend Framework: HTML and CSS
