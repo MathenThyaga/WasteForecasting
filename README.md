@@ -10,11 +10,12 @@ https://waste-management-system-841c1.web.app/
 This project aims to empower stakeholders to make informed decisions through proactive planning, resource allocation, and effective garbage collection, encouraging sustainable waste management practices and contributing to Malaysia's environmental preservation efforts
 
 # Features
-1. Web Application
+1. # Web Application
    - Built using HTML, CSS & JavaScript
    - Hosted on Firebase Hosting
    - Native Frontend Framework: HTML and CSS
-     HTML and CSS are used to design and structure the web application, providing a clean and responsive interface. These foundational web technologies enable custom page-by-page development, ensuring the application aligns with specific      project requirements while seamlessly integrating real-time data from Firebase for user interactions.
+     HTML and CSS are used to design and structure the web application, providing a clean and responsive interface. These foundational web technologies enable custom page-by-page development, ensuring the application aligns with       
+     specific project requirements while seamlessly integrating real-time data from Firebase for user interactions.
 
    - Backend: Firebase Hosting
      Firebase Hosting serves as the backend platform, offering a secure, scalable, and fast environment to host the web application. It simplifies the deployment process, ensuring smooth delivery of static assets like HTML, CSS, and           JavaScript files to users worldwide.
