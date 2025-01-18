@@ -112,7 +112,7 @@ if (status == WL_CONNECTED) {
 }
 ```
 
-##Ultrasonic Sensor Reading
+## Ultrasonic Sensor Reading
 ```python
 // Measure waste level using Sensor 1
 void measureWasteLevel() {
@@ -153,7 +153,7 @@ bool IsBinClosed() {
 }
 ```
 
-##Main Logic (Loop)
+## Main Logic (Loop)
 ```python
 void loop() {
     if (IsBinClosed()) {
@@ -171,7 +171,7 @@ void loop() {
 }
 ```
 
-##Updating Firebase
+## Updating Firebase
 ```python
 // Update waste level in Firebase with retries
 bool updateFirebaseWithRetry() {
