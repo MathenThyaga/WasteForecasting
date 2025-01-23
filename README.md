@@ -223,4 +223,7 @@ Firebase:
 Streamlit:
 - https://docs.streamlit.io/
 
+Progressive Web Application (PWA):
+- https://appinventiv.com/blog/migrating-your-website-to-progressive-web-app/ 
+
 
