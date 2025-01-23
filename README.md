@@ -224,6 +224,9 @@ Streamlit:
 - https://docs.streamlit.io/
 
 Progressive Web Application (PWA):
-- https://appinventiv.com/blog/migrating-your-website-to-progressive-web-app/ 
+- https://appinventiv.com/blog/migrating-your-website-to-progressive-web-app/
+
+Demo Video:
+- https://drive.google.com/file/d/11L8qXKoItA-Dm8lU5i5nZj6OEHnZLjRk/view?usp=sharing 
 
 
