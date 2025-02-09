@@ -65,7 +65,7 @@ This project aims to empower stakeholders to make informed decisions through pro
    - Click "Forecast Now"
    - User can view forecasted waste levels and line chart of forecasted levels for chosen time range
 
-3. Web Application
+3. Mobile Application
    - Similar to Web Application
    - To host and deploy app in firebase:
       - Install Node.js and npm: Download and install Node.js, which includes npm.
